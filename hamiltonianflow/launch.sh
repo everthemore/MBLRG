@@ -8,7 +8,7 @@
 
 for i in `seq 0 599`
 do
-	qsub -v L=6,hscale=3,Jscale=1,Uscale=1,seed=$i -N flow-W3-$i controlscript.pbs
+	qsub -v L=6,hscale=10,Jscale=1,Uscale=1,seed=$i -N flow-W10-$i controlscript.pbs
 done
 
 
