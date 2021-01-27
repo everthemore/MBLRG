@@ -29,6 +29,9 @@ while not finished:
     energyscales.append(energyscale)
 
     hstep, Jstep = H.getCoefficientDistributions()
+    
+    # [J,h] = energy diff, average that instead of <h>
+
     h.append(hstep)
     J.append(Jstep)
 

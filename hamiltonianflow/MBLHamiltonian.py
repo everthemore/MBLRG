@@ -426,18 +426,17 @@ class MBLHamiltonian:
 
         # This list only contains each conjugate once
         for term in self.H.opterms:
+            r = term.range
 
-          # Extract the "range"
-          r = term.range
+            h[r] = []
+            J[r] = []
 
-          # Track diagonals
-          if term.isDiagonal():
-            h[r].append(np.abs(term.coeff))
-            continue
-
-          else:
-            # Otherwise, add to the offdiags
-            J[r].append(np.abs(term.coeff))
+            # Track diagonals
+            if term.isDiagonal():
+                h[r].append(np.abs(term.coeff))
+            else:
+                # Otherwise, add to the offdiags
+                J[r].append(np.abs(term.coeff))
 
         if not mean:
             return h, J
