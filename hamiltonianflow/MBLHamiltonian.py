@@ -326,7 +326,7 @@ class MBLHamiltonian:
 
         #t0 = time.time()
         # Update the Hamiltonian
-        self.H = newH.cleanup(threshold=1e-3)
+        self.H = newH.cleanup(threshold=1e-5)
 
         #t1 = time.time()
         #total = t1-t0
