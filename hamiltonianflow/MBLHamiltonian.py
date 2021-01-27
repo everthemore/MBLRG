@@ -345,79 +345,79 @@ class MBLHamiltonian:
 
         return self.H.isDiagonal(), amplitudes[index]
 
-def invert(self, op, index):
-    '''
-    Recursive function that inverts an operator
-    '''
+    def invert(self, op, index):
+        '''
+        Recursive function that inverts an operator
+        '''
 
-    # If the operator is empty, nothing to invert
-    if( len(op.opterms) == 0):
-        return None
+        # If the operator is empty, nothing to invert
+        if( len(op.opterms) == 0):
+            return None
 
-    # If we get to the identity, we're done
-    if len(op.opterms) == 1:
-        if( op.opterms[0].diagonal_str == "0"*self.L ):
-    #        print("  "*index + "Is identity, so we will return 1/coeff: %.3f"%(1/op.opterms[0].coeff))
-            return operator([opterm(1/op.opterms[0].coeff,"0"*self.L)])
+        # If we get to the identity, we're done
+        if len(op.opterms) == 1:
+            if( op.opterms[0].diagonal_str == "0"*self.L ):
+        #        print("  "*index + "Is identity, so we will return 1/coeff: %.3f"%(1/op.opterms[0].coeff))
+                return operator([opterm(1/op.opterms[0].coeff,"0"*self.L)])
 
-    # We loop over all possible local density operators
-    # Construct density on this site
-    opstring = ["0"] * self.L
-    opstring[index] = "3";
-    opstring = "".join(opstring)
-    densop = opterm(1,opstring)
-    #print("  "*index + "Checking for density term: ")
-    #print("  "*index + densop.__str__())
-    densop = operator([densop])
+        # We loop over all possible local density operators
+        # Construct density on this site
+        opstring = ["0"] * self.L
+        opstring[index] = "3";
+        opstring = "".join(opstring)
+        densop = opterm(1,opstring)
+        #print("  "*index + "Checking for density term: ")
+        #print("  "*index + densop.__str__())
+        densop = operator([densop])
 
-    # We haven't yet expaned this term
-    expanded = False
+        # We haven't yet expaned this term
+        expanded = False
 
-    # now for each term in the operator, we see if the site bit is set.
+        # now for each term in the operator, we see if the site bit is set.
 
-    # Setting that density to 1 is the same as:
-    # If it is, we replace it by a 0, and we just keep it
-    # Setting that density to 0 is the same as:
-    # If it is, we remove the term, and otherwise we just keep it
-    newop1 = operator([])
-    newop2 = operator([])
-    encountered = False
-    for term in op.opterms:
+        # Setting that density to 1 is the same as:
+        # If it is, we replace it by a 0, and we just keep it
+        # Setting that density to 0 is the same as:
+        # If it is, we remove the term, and otherwise we just keep it
+        newop1 = operator([])
+        newop2 = operator([])
+        encountered = False
+        for term in op.opterms:
 
-        if term.diagonal_str[index] == '3':
-        #    print("  "*index + "This term has that density")
-            # So we'll split off two operators
-            # One in which we replace this density by an identity
-            newopstring = term.diagonal_str[:index] + "0" + term.diagonal_str[index+1:]
-            newop1 = newop1 + operator([opterm(term.coeff,newopstring)])
-            # And one in which we set it to zero, so it disappears
-            encountered = True
+            if term.diagonal_str[index] == '3':
+            #    print("  "*index + "This term has that density")
+                # So we'll split off two operators
+                # One in which we replace this density by an identity
+                newopstring = term.diagonal_str[:index] + "0" + term.diagonal_str[index+1:]
+                newop1 = newop1 + operator([opterm(term.coeff,newopstring)])
+                # And one in which we set it to zero, so it disappears
+                encountered = True
+            else:
+            #    print("  "*index + "This term does not have that density")
+                # So we'll keep the term as-is
+                newop1 = newop1 + operator([term])
+                newop2 = newop2 + operator([term])
+
+
+        if( not encountered ):
+            # Skip this and go to the next index
+            print("%d"%index + "  "*index + op.__str__())
+            return self.invert(op, index+1)
         else:
-        #    print("  "*index + "This term does not have that density")
-            # So we'll keep the term as-is
-            newop1 = newop1 + operator([term])
-            newop2 = newop2 + operator([term])
+            #print("%d"%index + "  "*index + "Current operators")
+            #print("%d"%index + "  "*index + newop1.__str__())
+            #print("%d"%index + "  "*index + newop2.__str__())
+            newterm1 = self.invert(newop1, index+1)
+            newterm2 = self.invert(newop2, index+1)
 
+            result = newterm1*densop
 
-    if( not encountered ):
-        # Skip this and go to the next index
-        print("%d"%index + "  "*index + op.__str__())
-        return self.invert(op, index+1)
-    else:
-        #print("%d"%index + "  "*index + "Current operators")
-        #print("%d"%index + "  "*index + newop1.__str__())
-        #print("%d"%index + "  "*index + newop2.__str__())
-        newterm1 = self.invert(newop1, index+1)
-        newterm2 = self.invert(newop2, index+1)
+            #if( len(newterm2.opterms) != 0):
+            if( newterm2 != None ):
+                result = result + newterm2*(operator([opterm(1,"0"*self.L)])-densop)
 
-        result = newterm1*densop
-
-        #if( len(newterm2.opterms) != 0):
-        if( newterm2 != None ):
-            result = result + newterm2*(operator([opterm(1,"0"*self.L)])-densop)
-
-        print("%d"%index + "  "*index + result.__str__())
-        return result
+            print("%d"%index + "  "*index + result.__str__())
+            return result
 
     def getCoefficientDistributions(self, mean = False):
         # Zero out the dictionaries
