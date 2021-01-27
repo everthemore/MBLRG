@@ -53,9 +53,9 @@ class operator:
 
         return newOperator
 
-    def cleanup(self):
+    def cleanup(self, threshold=1e-8):
         # Cleanup
-        keepops = [x for x in self.opterms if np.abs(x.coeff) >= 1e-8]
+        keepops = [x for x in self.opterms if np.abs(x.coeff) >= threshold]
         this = operator(keepops)
         return this
 
@@ -277,4 +277,3 @@ class opterm:
 
     def __str__(self):
         return "Term 0: {0} {1}".format(self.coeff, self.string)
-

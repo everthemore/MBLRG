@@ -92,6 +92,9 @@ class MBLHamiltonian:
         self.minv = np.linalg.inv(self.m)
 
     def group_terms(self):
+        '''
+        Populates the self.diagonals and self.offdiagonals dictionaries
+        '''
         offdiagonalindices = {}
         diagonal = operator([])
         offdiagonal_list = []
@@ -103,16 +106,21 @@ class MBLHamiltonian:
             # Check if we already considered the conjugate of this term
             if( term.conj().string in already_seen_operators ):
                 continue
+
+            # If we get here, we add it to the list
             already_seen_operators.append(term.string)
 
+            # If the term is diagonal, add it to the diagonal list
             if( term.isDiagonal() ):
                 diagonal = diagonal + operator([term])
                 continue
 
-            # must be off-diagonal
-            # Build hoppingOperator
+            # Must be off-diagonal, so build a hoppingOperator
+            # Extract the diagonal part
             newop_diag = term.coeff*operator([term.getDiagonal()])
+            # Extract the offdiagonal part
             newop_offdiag = operator([term.getOffDiagonal()]) + operator([term.getOffDiagonal()]).conj()
+            # Build the hoppingOperator
             ho = hoppingOperator(newop_diag, newop_offdiag)
 
             # See if we already have this
@@ -128,128 +136,6 @@ class MBLHamiltonian:
         # Store diagonals and offdiagonals
         self.diagonals = diagonal
         self.offdiagonals = offdiagonal_list
-
-    def getCoefficientDistributions(self, mean = False):
-
-        # Zero out the dictionaries
-        h = {}
-        for r in range(self.L+1):
-          h[r] = []
-
-        J = {}
-        for r in range(self.L+1):
-          J[r] = []
-
-        # This list only contains each conjugate once
-        for term in self.H.opterms:
-
-          # Extract the "range"
-          r = term.range
-
-          # Track diagonals
-          if term.isDiagonal():
-            h[r].append(np.abs(term.coeff))
-            continue
-
-          else:
-            # Otherwise, add to the offdiags
-            J[r].append(np.abs(term.coeff))
-
-        if not mean:
-            return h, J
-
-       # Convert to means
-        ha = []
-        for r in range(self.L+1):
-            if( len(h[r]) == 0 ):
-              ha.append(0)
-            else:
-              ha.append(np.mean(h[r]))
-
-        Ja = []
-        for r in range(self.L+1):
-            if( len(J[r]) == 0 ):
-              Ja.append(0)
-            else:
-              Ja.append(np.mean(J[r]))
-
-        return ha, Ja
-
-    def invert(self, op, index):
-
-        if( len(op.opterms) == 0):
-            return None
-
-        #print("  "*index + "Inverting operator:")
-        #for term in op.opterms:
-        #    print("  "*index + term.__str__())
-
-        #print("%d"%index + "  "*index + "Considering index %d"%index)
-        # If we get to the identity, we're done
-        if len(op.opterms) == 1:
-            if( op.opterms[0].diagonal_str == "0"*self.L ):
-        #        print("  "*index + "Is identity, so we will return 1/coeff: %.3f"%(1/op.opterms[0].coeff))
-                return operator([opterm(1/op.opterms[0].coeff,"0"*self.L)])
-
-        # We loop over all possible local density operators
-        #for site in range(self.L):
-        # Construct density on this site
-        opstring = ["0"] * self.L
-        opstring[index] = "3";
-        opstring = "".join(opstring)
-        densop = opterm(1,opstring)
-        #print("  "*index + "Checking for density term: ")
-        #print("  "*index + densop.__str__())
-        densop = operator([densop])
-
-        # We haven't yet expaned this term
-        expanded = False
-
-        # now for each term in the operator, we see if the site bit is set.
-
-        # Setting that density to 1 is the same as:
-        # If it is, we replace it by a 0, and we just keep it
-        # Setting that density to 0 is the same as:
-        # If it is, we remove the term, and otherwise we just keep it
-        newop1 = operator([])
-        newop2 = operator([])
-        encountered = False
-        for term in op.opterms:
-
-            if term.diagonal_str[index] == '3':
-            #    print("  "*index + "This term has that density")
-                # So we'll split off two operators
-                # One in which we replace this density by an identity
-                newopstring = term.diagonal_str[:index] + "0" + term.diagonal_str[index+1:]
-                newop1 = newop1 + operator([opterm(term.coeff,newopstring)])
-                # And one in which we set it to zero, so it disappears
-                encountered = True
-            else:
-            #    print("  "*index + "This term does not have that density")
-                # So we'll keep the term as-is
-                newop1 = newop1 + operator([term])
-                newop2 = newop2 + operator([term])
-
-
-        if( not encountered ):
-            # Skip this and go to the next index
-            print("%d"%index + "  "*index + op.__str__())
-            return self.invert(op, index+1)
-        else:
-            #print("%d"%index + "  "*index + "Current operators")
-            #print("%d"%index + "  "*index + newop1.__str__())
-            #print("%d"%index + "  "*index + newop2.__str__())
-            newterm1 = self.invert(newop1, index+1)
-            newterm2 = self.invert(newop2, index+1)
-
-            result = newterm1*densop
-
-            #if( len(newterm2.opterms) != 0):
-            if( newterm2 != None ):
-                result = result + newterm2*(operator([opterm(1,"0"*self.L)])-densop)
-
-            print("%d"%index + "  "*index + result.__str__())
-            return result
 
     def convertToStateBasis(self, op):
         operator_basis = np.zeros( 2**(self.L) )
@@ -287,14 +173,16 @@ class MBLHamiltonian:
         return inverse_operator
 
     def computeInverse(self, op):
+        # TODO: This can be cached!
 
+        # In the state basis, we can just invert the coefficients
         state_basis = self.convertToStateBasis(op)
         # Invert
         state_basis = 1/state_basis
-
+        # Convert back
         return self.convertToOperator(state_basis)
 
-    def rotateOut(self):
+    def rotateOut(self, method=0):
 
         #print("Rotating Out")
         # See if there is anything to rotate out; return True if we're diagonal
@@ -304,11 +192,25 @@ class MBLHamiltonian:
         # Compute a list of all the coeffs of the offdiagonals
         #t0 = time.time()
         amplitudes = []
-        for o in self.offdiagonals:
-            tmp = 0
-            for i in o.diagonal.opterms:
-                tmp += np.abs(i.coeff)**2
-            amplitudes.append(tmp)
+        if( method == 0 ):
+            for o in self.offdiagonals:
+                tmp = 0
+                for i in o.diagonal.opterms:
+                    tmp += np.abs(i.coeff)**2
+                amplitudes.append(tmp)
+
+        # Use L2 norm
+        if( method == 1 ):
+            for o in self.offdiagonals: # c1^dagger c_2 ( J1 + J2 * n3)
+
+                # Construct a list of all the abs^2 of coeffs
+                altnorm = []
+                for i in o.diagonal.opterms: #( J1, J2 n3, ... )
+                    altnorm.append(np.abs(i.coeff)**2)
+
+                # Take the max of this list
+                max_for_this_offdiagonal = np.max(altnorm)
+                amplitudes.append(max_for_this_offdiagonal)
 
         #t1 = time.time()
         #total = t1-t0
@@ -354,7 +256,7 @@ class MBLHamiltonian:
         for d in deltaEterms.opterms:
             if( d.isDiagonal() ):
                 deltaV = deltaV + operator([opterm(d.coeff, d.diagonal_str)])
-            else:
+            else: # /2 because?
                 deltaV = deltaV + operator([opterm(d.coeff/2, d.diagonal_str)])
 
         #t1 = time.time()
@@ -372,7 +274,6 @@ class MBLHamiltonian:
         #t1 = time.time()
         #total = t1-t0
         #print("\t Converting to state bases: %.3f"%total)
-
 
 #        if( not delta_state_basis.any() ):
 #            r = np.ones_like(delta_state_basis)*np.pi/4
@@ -421,14 +322,11 @@ class MBLHamiltonian:
             print(Sm)
 
         # Rotate out
-        #newH = Sm * self.H
-        newH = Sm * self.H
-        #newH = newH.cleanup()
-        newH = newH * Sp
+        newH = Sm * self.H * Sp
 
         #t0 = time.time()
         # Update the Hamiltonian
-        self.H = newH.cleanup()
+        self.H = newH.cleanup(threshold=1e-3)
 
         #t1 = time.time()
         #total = t1-t0
@@ -446,3 +344,117 @@ class MBLHamiltonian:
         #print("\t Regrouping: %.3f"%total)
 
         return self.H.isDiagonal(), amplitudes[index]
+
+def invert(self, op, index):
+    '''
+    Recursive function that inverts an operator
+    '''
+
+    # If the operator is empty, nothing to invert
+    if( len(op.opterms) == 0):
+        return None
+
+    # If we get to the identity, we're done
+    if len(op.opterms) == 1:
+        if( op.opterms[0].diagonal_str == "0"*self.L ):
+    #        print("  "*index + "Is identity, so we will return 1/coeff: %.3f"%(1/op.opterms[0].coeff))
+            return operator([opterm(1/op.opterms[0].coeff,"0"*self.L)])
+
+    # We loop over all possible local density operators
+    # Construct density on this site
+    opstring = ["0"] * self.L
+    opstring[index] = "3";
+    opstring = "".join(opstring)
+    densop = opterm(1,opstring)
+    #print("  "*index + "Checking for density term: ")
+    #print("  "*index + densop.__str__())
+    densop = operator([densop])
+
+    # We haven't yet expaned this term
+    expanded = False
+
+    # now for each term in the operator, we see if the site bit is set.
+
+    # Setting that density to 1 is the same as:
+    # If it is, we replace it by a 0, and we just keep it
+    # Setting that density to 0 is the same as:
+    # If it is, we remove the term, and otherwise we just keep it
+    newop1 = operator([])
+    newop2 = operator([])
+    encountered = False
+    for term in op.opterms:
+
+        if term.diagonal_str[index] == '3':
+        #    print("  "*index + "This term has that density")
+            # So we'll split off two operators
+            # One in which we replace this density by an identity
+            newopstring = term.diagonal_str[:index] + "0" + term.diagonal_str[index+1:]
+            newop1 = newop1 + operator([opterm(term.coeff,newopstring)])
+            # And one in which we set it to zero, so it disappears
+            encountered = True
+        else:
+        #    print("  "*index + "This term does not have that density")
+            # So we'll keep the term as-is
+            newop1 = newop1 + operator([term])
+            newop2 = newop2 + operator([term])
+
+
+    if( not encountered ):
+        # Skip this and go to the next index
+        print("%d"%index + "  "*index + op.__str__())
+        return self.invert(op, index+1)
+    else:
+        #print("%d"%index + "  "*index + "Current operators")
+        #print("%d"%index + "  "*index + newop1.__str__())
+        #print("%d"%index + "  "*index + newop2.__str__())
+        newterm1 = self.invert(newop1, index+1)
+        newterm2 = self.invert(newop2, index+1)
+
+        result = newterm1*densop
+
+        #if( len(newterm2.opterms) != 0):
+        if( newterm2 != None ):
+            result = result + newterm2*(operator([opterm(1,"0"*self.L)])-densop)
+
+        print("%d"%index + "  "*index + result.__str__())
+        return result
+
+    def getCoefficientDistributions(self, mean = False):
+        # Zero out the dictionaries
+        h = {}
+        J = {}
+
+        # This list only contains each conjugate once
+        for term in self.H.opterms:
+
+          # Extract the "range"
+          r = term.range
+
+          # Track diagonals
+          if term.isDiagonal():
+            h[r].append(np.abs(term.coeff))
+            continue
+
+          else:
+            # Otherwise, add to the offdiags
+            J[r].append(np.abs(term.coeff))
+
+        if not mean:
+            return h, J
+
+        # Convert to means
+        ha = []
+        for r in range(self.L+1):
+            if( len(h[r]) == 0 ):
+              ha.append(0)
+            else:
+              ha.append(np.mean(h[r]))
+
+        Ja = []
+        for r in range(self.L+1):
+            if( len(J[r]) == 0 ):
+              Ja.append(0)
+            else:
+              Ja.append(np.mean(J[r]))
+
+        return ha, Ja
