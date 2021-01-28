@@ -6,11 +6,10 @@
 #	qsub -v L=6,hscale=4,Jscale=1,Uscale=1,seed=$i -N flow-W4-$i controlscript.pbs
 #done
 
-for i in `seq 0 599`
+for i in `seq 0 299`
 do
-	qsub -v L=6,hscale=10,Jscale=1,Uscale=1,seed=$i -N flow-W10-$i controlscript.pbs
+	qsub -v L=6,hscale=4,Jscale=1,Uscale=1,seed=$i -N flow-W4-$i controlscript.pbs
 done
-
 
 #for i in `seq 0 9`
 #do

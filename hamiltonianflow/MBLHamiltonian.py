@@ -182,7 +182,7 @@ class MBLHamiltonian:
         # Convert back
         return self.convertToOperator(state_basis)
 
-    def rotateOut(self, method=0):
+    def rotateOut(self, method=0, threshold=1e-8):
 
         #print("Rotating Out")
         # See if there is anything to rotate out; return True if we're diagonal
@@ -326,7 +326,7 @@ class MBLHamiltonian:
 
         #t0 = time.time()
         # Update the Hamiltonian
-        self.H = newH.cleanup(threshold=1e-5)
+        self.H = newH.cleanup(threshold=threshold)
 
         #t1 = time.time()
         #total = t1-t0
@@ -423,7 +423,7 @@ class MBLHamiltonian:
         # Zero out the dictionaries
         h = {}
         for r in range(1,self.L+1):
-          J[r] = []
+          h[r] = []
 
         J = {}
         for r in range(2,self.L+1):

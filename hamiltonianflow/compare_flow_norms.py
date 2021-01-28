@@ -1,7 +1,7 @@
 from MBLHamiltonian import *
 from pathlib import Path
 
-def doFlow(L, hscale, Jscale, Uscale, seed, method):
+def doFlow(L, hscale, Jscale, Uscale, seed, method, threshold=1e-8):
     np.random.seed(seed)
     H = MBLHamiltonian(L,hscale, Jscale, Uscale)
 
@@ -28,10 +28,8 @@ def doFlow(L, hscale, Jscale, Uscale, seed, method):
         if currentStep > maxSteps:
             break
 
-        print(currentStep)
-
-    np.save("data/compare-norms/flowresult-L-{0}-seed-{1}-method-{2}.npy".format(L,seed,method), np.array([h,J]), allow_pickle=True)
-    np.savetxt("data/compare-norms/energyscales-L-{0}-seed-{1}-method-{2}.txt".format(L,seed,method), np.array(energyscales))
+    np.save("data/compare-norms/threshold-{6}/flowresult-L-{0}-h-{1}-U-{2}-J-{3}-seed-{4}-method-{5}.npy".format(L,hscale,Uscale,Jscale,seed,method,threshold), np.array([h,J]), allow_pickle=True)
+    np.savetxt("data/compare-norms/threshold-{6}/energyscales-L-{0}-h-{1}-U-{2}-J-{3}-seed-{4}-method-{5}.txt".format(L,hscale,Uscale,Jscale,seed,method,threshold), np.array(energyscales))
 
 if __name__ == "__main__":
     L = int(sys.argv[1])
@@ -40,6 +38,7 @@ if __name__ == "__main__":
     Uscale = float(sys.argv[4])
     seed = int(sys.argv[5])
 
-    Path("data/compare-norms").mkdir(parents=True, exist_ok=True)
-    doFlow(L, hscale, Jscale, Uscale, seed, 0)
-    doFlow(L, hscale, Jscale, Uscale, seed, 1)
+    for threshold in [1e-3, 1e-5, 1e-8]:
+        Path("data/compare-norms/threshold-{0}".format(threshold)).mkdir(parents=True, exist_ok=True)
+        doFlow(L, hscale, Jscale, Uscale, seed, 0, threshold)
+        doFlow(L, hscale, Jscale, Uscale, seed, 1, threshold)

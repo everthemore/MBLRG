@@ -3,4 +3,4 @@
 #PBS -l mem=2gb
 cd $PBS_O_WORKDIR
 
-/usr/bin/time python3 flow.py $L $hscale $Jscale $Uscale $seed
+/usr/bin/time python3 compare_flow_norms.py $L $hscale $Jscale $Uscale $seed
