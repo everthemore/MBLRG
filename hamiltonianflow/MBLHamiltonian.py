@@ -422,14 +422,16 @@ class MBLHamiltonian:
     def getCoefficientDistributions(self, mean = False):
         # Zero out the dictionaries
         h = {}
+        for r in range(1,self.L+1):
+          J[r] = []
+
         J = {}
+        for r in range(2,self.L+1):
+          J[r] = []
 
         # This list only contains each conjugate once
         for term in self.H.opterms:
             r = term.range
-
-            h[r] = []
-            J[r] = []
 
             # Track diagonals
             if term.isDiagonal():
