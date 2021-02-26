@@ -1,53 +1,58 @@
-from MBLHamiltonian import *
+from MBLHamiltonian import MBLHamiltonian
+import sys
+import numpy as np
 
-L = int(sys.argv[1])
-hscale = float(sys.argv[2])
-Jscale = float(sys.argv[3])
-Uscale = float(sys.argv[4])
-seed = int(sys.argv[5])
-np.random.seed(seed)
-
-H = MBLHamiltonian(L,hscale, Jscale, Uscale)
-
-print("Starting H")
-for t in H.H.opterms:
-    print(t)
-
-h = []
-J = []
-energyscales = []
-hstep, Jstep = H.getCoefficientDistributions()
-h.append(hstep)
-J.append(Jstep)
-
-maxSteps = 300
-currentStep = 0
-finished = False
-
-while not finished:
-    finished, energyscale = H.rotateOut()
-    energyscales.append(energyscale)
+def doFlow(H, method, threshold):
+    h = []
+    J = []
 
     hstep, Jstep = H.getCoefficientDistributions()
-    
-    # [J,h] = energy diff, average that instead of <h>
-
     h.append(hstep)
     J.append(Jstep)
 
-    currentStep += 1
-    if currentStep > maxSteps:
-        break
+    maxSteps = 100
+    currentStep = 0
+    finished = False
 
-    if (currentStep % 10 == 0) and (currentStep != 0):
-        np.save("data/W-{2}/chkpts/flowresult-L-{0}-seed-{1}.npy.chkpt".format(L,seed,hscale), np.array([h,J]), allow_pickle=True)
-        np.savetxt("data/W-{2}/chkpts/energyscales-L-{0}-seed-{1}.txt.chkpt".format(L,seed,hscale), np.array(energyscales))
+    evals_vs_step = []
+    while not finished:
+        print("Flow step #%d"%currentStep)
 
-    print(currentStep)
-    for k in Jstep.keys():
-        print("range ", k)
-        print(np.mean(Jstep[k]))
-    print("")
+        if( currentStep != 0 and currentStep %5 == 0 ):
+            evals, evecs = np.linalg.eigh(H.H.toMatrix())
+            evals_vs_step.append(evals)
 
-np.save("data/W-{2}/flowresult-L-{0}-seed-{1}.npy".format(L,seed,hscale), np.array([h,J]), allow_pickle=True)
-np.savetxt("data/W-{2}/energyscales-L-{0}-seed-{1}.txt".format(L,seed,hscale), np.array(energyscales))
+        finished = H.rotateOut(method,threshold)
+        hstep, Jstep = H.getCoefficientDistributions()
+
+        h.append(hstep)
+        J.append(Jstep)
+
+        currentStep += 1
+        if currentStep > maxSteps:
+            break
+
+    data = {'h':np.array(h), 'J':np.array(J), 'evals_vs_step':np.array(evals_vs_step)}
+    np.save("data/hJ-L-{0}-h-{1}-U-{2}-J-{3}-seed-{4}.txt".format(L,hscale,Uscale,Jscale,seed), data, allow_pickle=True)
+
+if __name__ == "__main__":
+    L = int(sys.argv[1])
+    hscale = float(sys.argv[2])
+    Jscale = float(sys.argv[3])
+    Uscale = float(sys.argv[4])
+    seed = int(sys.argv[5])
+
+    np.random.seed(seed)
+    H = MBLHamiltonian(L, hscale, Jscale, Uscale)
+
+    # # For debug wrt Gil's code
+    # onsite = np.array([0.0318536, 0.640208, 0.724303, 0.580884])
+    # nn = 3*np.array([0.931151, 0.636734, 0.928425])
+    # hop = np.array([0.195759, 2.80921, 1.70094])
+    # H.set_from_lists( onsite, nn, hop )
+
+    # print("Starting H")
+    # for t in H.H.opterms:
+    #     print(t)
+
+    doFlow(H, method=0, threshold=1e-5)
