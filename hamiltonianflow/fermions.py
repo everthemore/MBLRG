@@ -1,5 +1,4 @@
 import numpy as np
-import time
 
 class operator:
     def __init__(self, opterms):
@@ -65,6 +64,15 @@ class operator:
                 return False
         return True
 
+    def toMatrix(self):
+        '''
+        Return this operator as a dense matrix
+        '''
+        matrix = 0
+        for term in self.opterms:
+            matrix += term.coeff * term.toMatrix()
+        return matrix
+
     def __add__(self, other):
         # Add two operators
         newOperator = operator(self.opterms)
@@ -100,16 +108,25 @@ class operator:
                     operator([opterm(term1.coeff * other, term1.string)])
 
         else:
-            for term1 in self.opterms:
-                # Multiply each other term in other to the current
-                for term2 in other.opterms:
-                    # Multiply, and see if we need to add anything
-                    multiplied, dead = term1 * term2
+            allterms = list(filter(None,[term1 * term2 for term1 in self.opterms for term2 in other.opterms]))
+            allterms = [self.expand(t) for t in allterms]
 
-                    if not dead:
-                        # Could be a list or a term
-                        multiplied = self.expand(multiplied)
-                        newOperator = newOperator + multiplied
+            if allterms:
+                return np.sum(allterms).cleanup()
+            else:
+                return operator([])
+
+            # #map(multiply_terms, self.opterms, other.opterms)
+            # for term1 in self.opterms:
+            #     # Multiply each other term in other to the current
+            #     for term2 in other.opterms:
+            #         # Multiply, and see if we need to add anything
+            #         multiplied, dead = term1 * term2
+            #
+            #         if not dead:
+            #             # Could be a list or a term
+            #             multiplied = self.expand(multiplied)
+            #             newOperator = newOperator + multiplied
 
         return newOperator.cleanup()
 
@@ -127,7 +144,6 @@ class operator:
             return other.__mul__(self)
 
     def __str__(self):
-
         if(len(self.opterms) == 0):
             return "zero"
 
@@ -138,12 +154,16 @@ class operator:
 
 
 class opterm:
+    m = [ np.array([[1,0],[0,1]]), np.array([[0,1],[0,0]]), np.array([[0,0],[1,0]]), np.array([[0,0],[0,1]]) ]
+
     def __init__(self, coeff, string):
         self.coeff = coeff
         self.string = string
 
     def conj(self):
-
+        '''
+            Returns the complex conjugate of this term
+        '''
         newString = ["-1"] * len(self.string)
         for i, c in enumerate(self.string):
             if c == "1":
@@ -190,7 +210,6 @@ class opterm:
 
     @property
     def range(self):
-
         # Catch identity operator
         if self.string == "0" * len(self.string):
             return 0
@@ -212,68 +231,75 @@ class opterm:
 
         return end - start + 1
 
+    def toMatrix(self):
+        '''
+        Return this operator as a dense matrix
+        '''
+        if( len(self.string) < 2 and len(self.string) != 0 ):
+            return opterm.m[int(self.string[0])]
+
+        matrix = np.kron( opterm.m[int(self.string[0])], opterm.m[int(self.string[1])] )
+        for c in self.string[2:]:
+            matrix = np.kron(matrix, opterm.m[int(c)])
+        return matrix
+
+    def multiply_single(self, c1, c2):
+        newString = None
+
+        # Take care of the identity
+        if c1 == "0":
+            newString = c2
+        elif c2 == "0":
+            newString = c1
+
+        # If the first is a cdag
+        elif c1 == "1":
+            # If c2 is also a cdag
+            if c2 == "1":
+                return None
+
+            # If c2 is a c
+            if c2 == "2":
+                newString = "3"  # cdag*c == n
+
+            if c2 == "3":  # cdag*n = cdag cdag -> dead
+                return None
+
+        # If the first is a c
+        elif c1 == "2":
+            # If c2 is a dagger
+            if c2 == "1":
+                newString = "5"  # Needs to be expanded into 1 - density
+
+            if c2 == "2":
+                return None
+
+            if c2 == "3":
+                newString = "2"  # c*n = c
+
+        # If the first is a density
+        elif c1 == "3":
+            # If c2 is a cdag
+            if c2 == "1":
+                newString = "1"  # Equiv to just having a cdag
+
+            if c2 == "2":
+                return None
+
+            if c2 == "3":
+                newString = "3"  # density**2 = density
+
+        return newString
+
     def __mul__(self, other):
+        newString = list( map(self.multiply_single, self.string, other.string) )
+        if None in newString:
+            return None
+        return opterm(self.coeff * other.coeff, "".join(newString))
 
-        # Keep track of a flag indicating whether this term survives
-        dead = False
-
-        # New operator string
-        newString = ["8"] * len(self.string)
-
-        # Go entry by entry
-        for i in range(len(self.string)):
-
-            c1 = self.string[i]
-            c2 = other.string[i]
-
-            # Take care of the identity
-            if c1 == "0":
-                newString[i] = c2
-            elif c2 == "0":
-                newString[i] = c1
-
-            # If the first is a cdag
-            elif c1 == "1":
-                # If c2 is also a cdag
-                if c2 == "1":
-                    dead = True
-                    return None, dead
-
-                # If c2 is a c
-                if c2 == "2":
-                    newString[i] = "3"  # cdag*c == n
-
-                if c2 == "3":  # cdag*n = cdag cdag -> dead
-                    dead = True
-                    return None, dead
-
-            # If the first is a c
-            elif c1 == "2":
-                # If c2 is a dagger
-                if c2 == "1":
-                    newString[i] = "5"  # Needs to be expanded into 1 - density
-
-                if c2 == "2":
-                    dead = True
-                    return None, dead
-
-                if c2 == "3":
-                    newString[i] = "2"  # c*n = c
-
-            # If the first is a density
-            elif c1 == "3":
-                # If c2 is a cdag
-                if c2 == "1":
-                    newString[i] = "1"  # Equiv to just having a cdag
-
-                if c2 == "2":
-                    dead = True
-                    return None, dead
-
-                if c2 == "3":
-                    newString[i] = "3"  # density**2 = density
-
-        return opterm(self.coeff * other.coeff, "".join(newString)), dead
+        if None in newString:
+            return "", True
+        return opterm(self.coeff * other.coeff, "".join(newString)), False
 
     def __str__(self):
         return "Term 0: {0} {1}".format(self.coeff, self.string)

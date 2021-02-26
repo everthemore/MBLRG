@@ -1,7 +1,6 @@
 import sys
 import numpy as np
-from fermions import *
-import time
+from fermions import operator, opterm
 
 def make_term_from_indices(L, cdagsites, csites, nsites):
     # Sanity checks
@@ -57,18 +56,24 @@ class MBLHamiltonian:
         self.H = operator([])
 
         # Add random on-site terms
+        self.on_site_coeff = []
         for i in range(self.L):
             coeff = np.random.uniform(-hscale, hscale)
+            self.on_site_coeff.append(coeff)
             self.H = self.H + coeff * operator([make_term_from_indices(L, [], [], [i])])
 
         # Add NN interaction terms
+        self.nn_coeff = []
         for i in range(self.L-1):
             coeff = np.random.uniform(-Uscale, Uscale)
+            self.nn_coeff.append(coeff)
             self.H = self.H + coeff * operator([make_term_from_indices(L, [], [], [i,i+1])])
 
         # Add NN hopping
+        self.hopping_coeff = []
         for i in range(self.L-1):
             coeff = np.random.uniform(-Jscale, Jscale)
+            self.hopping_coeff.append(coeff)
             self.H = self.H + coeff * operator([make_term_from_indices(L, [i], [i+1], [])])
             self.H = self.H + coeff * operator([make_term_from_indices(L, [i+1], [i], [])])
 
@@ -90,6 +95,36 @@ class MBLHamiltonian:
             self.m = np.kron(self.m,mSingle)
         # Also store the inverse
         self.minv = np.linalg.inv(self.m)
+
+    def set_from_lists(self, onsite, nn, hop):
+
+        self.on_site_coeff = onsite
+        self.nn_coeff = nn
+        self.hopping_coeff = hop
+
+        # All of the operators
+        self.H = operator([])
+
+        # Add random on-site terms
+        for i in range(self.L):
+            self.H = self.H + onsite[i] * operator([make_term_from_indices(self.L, [], [], [i])])
+
+        # Add NN interaction terms
+
+        for i in range(self.L-1):
+            self.H = self.H + nn[i] * operator([make_term_from_indices(self.L, [], [], [i,i+1])])
+
+        # Add NN hopping
+        for i in range(self.L-1):
+            coeff = hop[i]
+            self.H = self.H + coeff * operator([make_term_from_indices(self.L, [i], [i+1], [])])
+            self.H = self.H + coeff * operator([make_term_from_indices(self.L, [i+1], [i], [])])
+
+        #-----------------
+        # We want to group similar offdiagonals, so that we can base our choice
+        # of which to rotate off of that
+        #-----------------
+        self.group_terms()
 
     def group_terms(self):
         '''
@@ -182,15 +217,7 @@ class MBLHamiltonian:
         # Convert back
         return self.convertToOperator(state_basis)
 
-    def rotateOut(self, method=0, threshold=1e-8):
-
-        #print("Rotating Out")
-        # See if there is anything to rotate out; return True if we're diagonal
-        if( len(self.offdiagonals) == 0 ):
-            return True
-
-        # Compute a list of all the coeffs of the offdiagonals
-        #t0 = time.time()
+    def pick_term_to_rotate_out(self, method):
         amplitudes = []
         if( method == 0 ):
             for o in self.offdiagonals:
@@ -212,45 +239,32 @@ class MBLHamiltonian:
                 max_for_this_offdiagonal = np.max(altnorm)
                 amplitudes.append(max_for_this_offdiagonal)
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t List of off-diagonals: %.3f"%total)
-
         # Pick the max
         index = np.argmax(amplitudes)
         op = self.offdiagonals[index]
+        return op
+
+    def rotateOut(self, method=0, threshold=1e-8):
+
+        #print("Rotating Out")
+        # See if there is anything to rotate out; return True if we're diagonal
+        if( len(self.offdiagonals) == 0 ):
+            return True
+
+        # Pick the term we are going to rotate out
+        op = self.pick_term_to_rotate_out(method)
 
         # Get the diagonal part
         diagt = op.diagonal
 
-        #t0 = time.time()
         # Get the offdiagonal part, but the - version
         A = operator([op.offdiagonal.opterms[0]]) - operator([op.offdiagonal.opterms[1]])
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Computing A: %.3f"%total)
-
-        if self.verbose:
-            print("Rotating out with:")
-            print(A)
-            print("Which has diagonal prefactor: ", diagt)
-
-        #t0 = time.time()
         # Construct unitary
         deltaEterms = (A*self.diagonals - self.diagonals*A) #.cleanup()
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Computing DeltaE: %.3f"%total)
-
-        if self.verbose:
-            print("Commutator with diagonals: ")
-            print(deltaEterms)
-
         #deltaEterms = [deltaEterms.opterms[i] for i in range(0,len(deltaEterms.opterms),2)]
 
-        #t0 = time.time()
         # Extract only the diagonal parts of all the operators
         deltaV = operator([])
         for d in deltaEterms.opterms:
@@ -259,26 +273,8 @@ class MBLHamiltonian:
             else: # /2 because?
                 deltaV = deltaV + operator([opterm(d.coeff/2, d.diagonal_str)])
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Computing DeltaV: %.3f"%total)
-
-        if self.verbose:
-            print("Delta V is: ")
-            print(deltaV)
-
-        #t0 = time.time()
         delta_state_basis = self.convertToStateBasis(deltaV)
         t_state_basis = self.convertToStateBasis(diagt)
-
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Converting to state bases: %.3f"%total)
-
-#        if( not delta_state_basis.any() ):
-#            r = np.ones_like(delta_state_basis)*np.pi/4
-#        else:
-#            r = np.arctan(2*t_state_basis/delta_state_basis)/2
 
         r = []
         for i in range(len(delta_state_basis)):
@@ -288,24 +284,9 @@ class MBLHamiltonian:
                 r.append( np.arctan(2*t_state_basis[i]/delta_state_basis[i])/2 )
         r = np.array(r)
 
-        if self.verbose:
-            print("vd: ", delta_state_basis)
-            print("vt: ", t_state_basis)
-            print("vq: ", r)
-
         #t0 = time.time()
         sin_rotator = self.convertToOperator( np.sin(r) )
         cos_rotator = self.convertToOperator( 1 - np.cos(r) )
-
-        if self.verbose:
-            print("Sin rot")
-            print(np.sin(r))
-            print(self.convertToOperator(np.sin(r)))
-            print(sin_rotator)
-            print("Cos rot")
-            print(cos_rotator)
-            print(A)
-            print(A*A)
 
         sinrotA = sin_rotator*A
         cosrotAA = cos_rotator*A*A
@@ -313,37 +294,15 @@ class MBLHamiltonian:
         Sm = operator([opterm(1,"0"*A.length)]) - sinrotA + cosrotAA
         Sp = operator([opterm(1,"0"*A.length)]) + sinrotA + cosrotAA
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Computing rotators and Sm and Sp: %.3f"%total)
-
-        if self.verbose:
-            print("transformation")
-            print(Sm)
-
         # Rotate out
         newH = Sm * self.H * Sp
 
-        #t0 = time.time()
         # Update the Hamiltonian
         self.H = newH.cleanup(threshold=threshold)
 
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Cleaning up: %.3f"%total)
-
-        if self.verbose:
-            print("regrouping")
-
-        #t0 = time.time()
         # Regroup
         self.group_terms()
-
-        #t1 = time.time()
-        #total = t1-t0
-        #print("\t Regrouping: %.3f"%total)
-
-        return self.H.isDiagonal(), amplitudes[index]
+        return self.H.isDiagonal()
 
     def invert(self, op, index):
         '''
@@ -404,9 +363,6 @@ class MBLHamiltonian:
             print("%d"%index + "  "*index + op.__str__())
             return self.invert(op, index+1)
         else:
-            #print("%d"%index + "  "*index + "Current operators")
-            #print("%d"%index + "  "*index + newop1.__str__())
-            #print("%d"%index + "  "*index + newop2.__str__())
             newterm1 = self.invert(newop1, index+1)
             newterm2 = self.invert(newop2, index+1)
 
