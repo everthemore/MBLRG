@@ -65,6 +65,15 @@ class operator:
                 return False
         return True
 
+    def toMatrix(self):
+        '''
+        Return this operator as a dense matrix
+        '''
+        matrix = 0
+        for term in self.opterms:
+            matrix += term.coeff * term.toMatrix()
+        return matrix
+
     def __add__(self, other):
         # Add two operators
         newOperator = operator(self.opterms)
@@ -138,6 +147,8 @@ class operator:
 
 
 class opterm:
+    m = [ np.array([[1,0],[0,1]]), np.array([[0,1],[0,0]]), np.array([[0,0],[1,0]]), np.array([[0,0],[0,1]]) ]
+
     def __init__(self, coeff, string):
         self.coeff = coeff
         self.string = string
@@ -187,6 +198,18 @@ class opterm:
                 newstring += c
 
         return newstring
+
+    def toMatrix(self):
+        '''
+        Return this operator as a dense matrix
+        '''
+        if( len(self.string) < 2 and len(self.string) != 0 ):
+            return opterm.m[int(self.string[0])]
+
+        matrix = np.kron( opterm.m[int(self.string[0])], opterm.m[int(self.string[1])] )
+        for c in self.string[2:]:
+            matrix = np.kron(matrix, opterm.m[int(c)])
+        return matrix
 
     @property
     def range(self):
