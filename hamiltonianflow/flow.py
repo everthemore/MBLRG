@@ -10,7 +10,7 @@ def doFlow(H, method, threshold):
     h.append(hstep)
     J.append(Jstep)
 
-    maxSteps = 100
+    maxSteps = 15
     currentStep = 0
     finished = False
 

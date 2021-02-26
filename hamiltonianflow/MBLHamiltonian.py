@@ -1,6 +1,6 @@
-import sys
 import numpy as np
 from fermions import operator, opterm
+import time
 
 def make_term_from_indices(L, cdagsites, csites, nsites):
     # Sanity checks
@@ -246,6 +246,9 @@ class MBLHamiltonian:
 
     def rotateOut(self, method=0, threshold=1e-8):
 
+        start_time = time.time()
+
+
         #print("Rotating Out")
         # See if there is anything to rotate out; return True if we're diagonal
         if( len(self.offdiagonals) == 0 ):
@@ -295,14 +298,21 @@ class MBLHamiltonian:
         Sp = operator([opterm(1,"0"*A.length)]) + sinrotA + cosrotAA
 
         # Rotate out
+        multimestart = time.time()
         newH = Sm * self.H * Sp
+        print("Multiplying took ", time.time() - multimestart)
 
         # Update the Hamiltonian
         self.H = newH.cleanup(threshold=threshold)
 
         # Regroup
         self.group_terms()
-        return self.H.isDiagonal()
+
+        isDiag = self.H.isDiagonal()
+        end_time = time.time()
+
+        print("rotateOut took ", end_time - start_time)
+        return isDiag
 
     def invert(self, op, index):
         '''
