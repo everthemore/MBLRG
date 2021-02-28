@@ -1,4 +1,7 @@
 import numpy as np
+from itertools import product
+from functools import reduce
+import time
 
 class operator:
     def __init__(self, opterms):
@@ -29,6 +32,10 @@ class operator:
         return len(self.opterms[0].string)
 
     def expand(self, term):
+
+        if( term == None ):
+            return
+
         # Recursive call
         if "5" not in term.string:
             return operator([term])
@@ -75,13 +82,19 @@ class operator:
 
     def __add__(self, other):
         # Add two operators
+        print("\t Adding")
+        s = time.time()
         newOperator = operator(self.opterms)
+        print("\t Copying myself took ", time.time() - s)
+
+        s=time.time()
         for term1 in other.opterms:
             index = self.contains(term1)
             if index != -1:
                 newOperator.opterms[index].coeff += term1.coeff
             else:
                 newOperator.opterms.append(term1)
+        print("\t The rest took ", time.time() - s)
 
         return newOperator #.cleanup()
 
@@ -99,6 +112,10 @@ class operator:
 
         return newOperator #.cleanup()
 
+    def multiply_single(self, terms):
+        result = terms[0] * terms[1]
+        return self.expand(result)
+
     def __mul__(self, other):
         newOperator = operator([])
 
@@ -108,9 +125,23 @@ class operator:
                     operator([opterm(term1.coeff * other, term1.string)])
 
         else:
-            allterms = list(filter(None,[term1 * term2 for term1 in self.opterms for term2 in other.opterms]))
-            allterms = [self.expand(t) for t in allterms]
+            s = time.time()
+            t = product(self.opterms, other.opterms)
+            print("Making list took ", time.time() - s)
 
+            s = time.time()
+            t2 = filter(None,map(self.multiply_single, t))
+            print("Multiplying and filtering list took ", time.time() - s)
+
+            s = time.time()
+            t3 = list(t2)
+            print("Listing list took ", time.time() - s)
+
+            if t3:
+                return np.sum(t3).cleanup()
+            else: return operator([])
+
+            allterms = list(filter(None,map(self.multiply_single, product(self.opterms, other.opterms))))
             if allterms:
                 return np.sum(allterms).cleanup()
             else:
