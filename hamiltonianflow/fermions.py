@@ -26,9 +26,6 @@ class operator:
         if "5" not in term:
             return {term:coeff}
 
-        # {'505':3}
-        # {'005':3, '305':-1}
-
         expanded_terms = {}
         for i in range(len(term)):
             if term[i] == "5":
@@ -76,8 +73,6 @@ class operator:
         for term in self.terms:
             matrix += self.terms[term] * self._toMatrix(term)
         return matrix
-
-
 
     def __add__(self, other):
         # Add two operators
@@ -170,14 +165,9 @@ class operator:
             allcombos = list(product( self.terms.items(), other.terms.items() ))
             allterms = map(self._mul, allcombos)
             flatterms = [item for sublist in allterms for item in sublist if item[0] != None]
-            #print(flatterms)
-
             # TODO: Get rid of this for loop!
             for term in flatterms:
-                #print("Considering ", term, " with ", term[0], " ", term[1])
-                #print("It's current value in newOperator: ", newOperator.terms.get(term[0],0))
                 newOperator.terms[term[0]] = newOperator.terms.get(term[0],0) + term[1]
-                #print("It's new value in newOperator: ", newOperator.terms[term[0]])
             #newOperator.terms = {k:newOperator.terms.get(k,0)+v for (k, v) in flatterms}
             return newOperator.cleanup()
 
@@ -190,6 +180,7 @@ class operator:
         else:  # We're multiplying other * operator
             # Always perform multiplication with left term first
             return other.__mul__(self)
+        return newOperator.cleanup()
 
     def __str__(self):
         if(len(self.terms.items()) == 0):
