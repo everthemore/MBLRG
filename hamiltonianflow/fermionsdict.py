@@ -25,7 +25,7 @@ class operator:
         newOperator.terms = {self._conj(k): np.conjugate(v) for k, v in self.terms.items()}
         return newOperator
 
-    def cleanup(self, threshold=1e-8):
+    def gi(self, threshold=1e-8):
         newOperator = operator([])
         newOperator.terms = {k:v for k, v in self.terms.items() if np.abs(v) >= threshold}
         return newOperator

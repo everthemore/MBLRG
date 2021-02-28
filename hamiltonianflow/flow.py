@@ -7,6 +7,12 @@ def doFlow(H, method, threshold):
     J = []
 
     hstep, Jstep = H.getCoefficientDistributions()
+
+    print("Initial distributions: ")
+    print(hstep)
+    print("")
+    print(Jstep)
+
     h.append(hstep)
     J.append(Jstep)
 
@@ -34,6 +40,7 @@ def doFlow(H, method, threshold):
 
     data = {'h':np.array(h), 'J':np.array(J), 'evals_vs_step':np.array(evals_vs_step)}
     np.save("data/hJ-L-{0}-h-{1}-U-{2}-J-{3}-seed-{4}.txt".format(L,hscale,Uscale,Jscale,seed), data, allow_pickle=True)
+    print(evals_vs_step[0])
 
 if __name__ == "__main__":
     L = int(sys.argv[1])
@@ -45,6 +52,9 @@ if __name__ == "__main__":
     np.random.seed(seed)
     H = MBLHamiltonian(L, hscale, Jscale, Uscale)
 
+    print("Initial Hamiltonian")
+    for term in H.H.terms:
+        print(H.H.terms[term], term)
     # # For debug wrt Gil's code
     # onsite = np.array([0.0318536, 0.640208, 0.724303, 0.580884])
     # nn = 3*np.array([0.931151, 0.636734, 0.928425])

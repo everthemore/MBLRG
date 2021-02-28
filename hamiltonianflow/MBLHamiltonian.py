@@ -1,5 +1,5 @@
 import numpy as np
-from fermions import operator, opterm
+from fermionsdict import operator
 import time
 
 def make_term_from_indices(L, cdagsites, csites, nsites):
@@ -19,7 +19,7 @@ def make_term_from_indices(L, cdagsites, csites, nsites):
       opstring[c] = "2"; #cs
     opstring = "".join(opstring)
 
-    return opterm(1,opstring)
+    return opstring
 
 class hoppingOperator:
     def __init__(self, diag, offdiag):
@@ -53,29 +53,29 @@ class MBLHamiltonian:
         self.verbose = False
 
         # All of the operators
-        self.H = operator([])
+        self.H = operator({})
 
         # Add random on-site terms
         self.on_site_coeff = []
         for i in range(self.L):
             coeff = np.random.uniform(-hscale, hscale)
             self.on_site_coeff.append(coeff)
-            self.H = self.H + coeff * operator([make_term_from_indices(L, [], [], [i])])
+            self.H.terms[make_term_from_indices(L, [], [], [i])] = coeff
 
         # Add NN interaction terms
         self.nn_coeff = []
         for i in range(self.L-1):
             coeff = np.random.uniform(-Uscale, Uscale)
             self.nn_coeff.append(coeff)
-            self.H = self.H + coeff * operator([make_term_from_indices(L, [], [], [i,i+1])])
+            self.H.terms[make_term_from_indices(L, [], [], [i,i+1])] = coeff
 
         # Add NN hopping
         self.hopping_coeff = []
         for i in range(self.L-1):
             coeff = np.random.uniform(-Jscale, Jscale)
             self.hopping_coeff.append(coeff)
-            self.H = self.H + coeff * operator([make_term_from_indices(L, [i], [i+1], [])])
-            self.H = self.H + coeff * operator([make_term_from_indices(L, [i+1], [i], [])])
+            self.H.terms[make_term_from_indices(L, [i], [i+1], [])] = coeff
+            self.H.terms[make_term_from_indices(L, [i+1], [i], [])] = coeff
 
         #-----------------
         # We want to group similar offdiagonals, so that we can base our choice
@@ -130,70 +130,34 @@ class MBLHamiltonian:
         '''
         Populates the self.diagonals and self.offdiagonals dictionaries
         '''
-        offdiagonalindices = {}
-        diagonal = operator([])
-        offdiagonal_list = []
+        self.diagonals = {}
+        self.offdiagonals = {}
 
         # Now we extract a list of all operators from the Hamiltonian
-        already_seen_operators = []
-        for term in self.H.opterms:
-
-            # Check if we already considered the conjugate of this term
-            if( term.conj().string in already_seen_operators ):
-                continue
-
-            # If we get here, we add it to the list
-            already_seen_operators.append(term.string)
-
-            # If the term is diagonal, add it to the diagonal list
-            if( term.isDiagonal() ):
-                diagonal = diagonal + operator([term])
-                continue
-
-            # Must be off-diagonal, so build a hoppingOperator
-            # Extract the diagonal part
-            newop_diag = term.coeff*operator([term.getDiagonal()])
-            # Extract the offdiagonal part
-            newop_offdiag = operator([term.getOffDiagonal()]) + operator([term.getOffDiagonal()]).conj()
-            # Build the hoppingOperator
-            ho = hoppingOperator(newop_diag, newop_offdiag)
-
-            # See if we already have this
-            strrep = ho.getOffdiagonalRepresentation()
-            index = offdiagonalindices.get( strrep, -1 )
-
-            if( index == -1 ):
-                offdiagonalindices[ strrep ] = len(offdiagonal_list)
-                offdiagonal_list.append( ho )
+        for term in self.H.terms:
+            if( "1" in term or "2" in term ):
+                self.offdiagonals[term] = self.H.terms[term]
             else:
-                offdiagonal_list[ index ].addToDiagonal( newop_diag )
-
-        # Store diagonals and offdiagonals
-        self.diagonals = diagonal
-        self.offdiagonals = offdiagonal_list
+                self.diagonals[term] = self.H.terms[term]
 
     def convertToStateBasis(self, op):
         operator_basis = np.zeros( 2**(self.L) )
 
-        for term in op.opterms:
-            binary_op_str = term.diagonal_str.replace('3', '1')
+        for term in op.terms:
+            binary_op_str = "".join(["1" if c == "3" else "0" for c in term])
             integer_op = int(binary_op_str, 2)
-            operator_basis[integer_op] = term.coeff
+            operator_basis[integer_op] = op.terms[term]
 
         # Convert to state basis
-        state_basis = np.dot(self.m,operator_basis)
+        state_basis = np.dot(self.m, operator_basis)
         return state_basis
 
     def convertToOperator(self, state_basis):
          # Convert to operator basis
         operator_basis = np.dot(self.minv,state_basis)
 
-        if self.verbose:
-            print("Convert to op: ")
-            print(operator_basis)
-
         # Extract operators
-        inverse_operator = operator([])
+        inverse_operator = operator()
         for i in range(len(operator_basis)):
             if operator_basis[i] != 0:
                 i_to_string_w_3s = format(i,'0%db'%self.L)
@@ -202,8 +166,8 @@ class MBLHamiltonian:
                 if self.verbose:
                     print("Nonzero: " + i_to_string_w_3s)
                     print("With val: ", operator_basis[i])
-                newopterm = opterm(operator_basis[i], i_to_string_w_3s)
-                inverse_operator = inverse_operator + operator([newopterm])
+
+                inverse_operator.terms[i_to_string_w_3s] = inverse_operator.terms.get(i_to_string_w_3s,0) + operator_basis[i]
 
         return inverse_operator
 
@@ -218,36 +182,52 @@ class MBLHamiltonian:
         return self.convertToOperator(state_basis)
 
     def pick_term_to_rotate_out(self, method):
-        amplitudes = []
-        if( method == 0 ):
-            for o in self.offdiagonals:
-                tmp = 0
-                for i in o.diagonal.opterms:
-                    tmp += np.abs(i.coeff)**2
-                amplitudes.append(tmp)
+        return max(self.offdiagonals, key=lambda key: self.offdiagonals[key])
 
-        # Use L2 norm
-        if( method == 1 ):
-            for o in self.offdiagonals: # c1^dagger c_2 ( J1 + J2 * n3)
+        #
+        # for term in self.offdiagonals:
+        #     amplitudes.append( np.abs(self.offdiagonals[term])**2 )
+        #
+        # index = np.argmax(amplitudes)
+        # op = self.offdiagonals[index]
+        # return op
+        #
+        # if( method == 0 ):
+        #     for o in self.offdiagonals:
+        #         tmp = 0
+        #         for i in o.diagonal.opterms:
+        #             tmp += np.abs(i.coeff)**2
+        #         amplitudes.append(tmp)
+        #
+        # # Use L2 norm
+        # if( method == 1 ):
+        #     for o in self.offdiagonals: # c1^dagger c_2 ( J1 + J2 * n3)
+        #
+        #         # Construct a list of all the abs^2 of coeffs
+        #         altnorm = []
+        #         for i in o.diagonal.opterms: #( J1, J2 n3, ... )
+        #             altnorm.append(np.abs(i.coeff)**2)
+        #
+        #         # Take the max of this list
+        #         max_for_this_offdiagonal = np.max(altnorm)
+        #         amplitudes.append(max_for_this_offdiagonal)
+        #
+        # # Pick the max
+        # index = np.argmax(amplitudes)
+        # op = self.offdiagonals[index]
+        # return op
 
-                # Construct a list of all the abs^2 of coeffs
-                altnorm = []
-                for i in o.diagonal.opterms: #( J1, J2 n3, ... )
-                    altnorm.append(np.abs(i.coeff)**2)
-
-                # Take the max of this list
-                max_for_this_offdiagonal = np.max(altnorm)
-                amplitudes.append(max_for_this_offdiagonal)
-
-        # Pick the max
-        index = np.argmax(amplitudes)
-        op = self.offdiagonals[index]
-        return op
+    def same_offdiag(self, term1, term2):
+        offdiag1 = [c if (c == "1" or c == "2") else "0" for c in term1]
+        offdiag2 = [c if (c == "1" or c == "2") else "0" for c in term2]
+        return offdiag1 == offdiag2
 
     def rotateOut(self, method=0, threshold=1e-8):
 
-        start_time = time.time()
+        def diag(term):
+            return "".join([c if c == "3" else "0" for c in term])
 
+        start_time = time.time()
 
         #print("Rotating Out")
         # See if there is anything to rotate out; return True if we're diagonal
@@ -255,26 +235,38 @@ class MBLHamiltonian:
             return True
 
         # Pick the term we are going to rotate out
-        op = self.pick_term_to_rotate_out(method)
+        term = self.pick_term_to_rotate_out(method)
 
-        # Get the diagonal part
-        diagt = op.diagonal
+        print("Rotating out ", term)
+
+        # Gather all the diagonal parts for this term
+        diagt = operator({diag(t):self.H.terms[t] for t in self.H.terms if self.same_offdiag(t,term)})
+
+        print("The diagonal part of this op is ", diagt)
 
         # Get the offdiagonal part, but the - version
-        A = operator([op.offdiagonal.opterms[0]]) - operator([op.offdiagonal.opterms[1]])
+        A = operator({term:self.H.terms[term]})
+        A = A - A.conj()
+
+        print("So A looks like ", A)
 
         # Construct unitary
-        deltaEterms = (A*self.diagonals - self.diagonals*A) #.cleanup()
+        diags = operator(self.diagonals)
+        deltaEterms = (A*diags - diags*A) #.cleanup()
+
+        print("The commutator with the diagonal terms ")
+        print(deltaEterms)
 
         #deltaEterms = [deltaEterms.opterms[i] for i in range(0,len(deltaEterms.opterms),2)]
 
         # Extract only the diagonal parts of all the operators
-        deltaV = operator([])
-        for d in deltaEterms.opterms:
-            if( d.isDiagonal() ):
-                deltaV = deltaV + operator([opterm(d.coeff, d.diagonal_str)])
+        deltaV = operator({})
+        for d in deltaEterms.terms:
+            diagd = "".join(["3" if c == "3" else "0" for c in d])
+            if( "1" in d ) or ("2" in d):
+                deltaV.terms[diagd] = deltaV.terms.get(diagd,0) + deltaEterms.terms[d]/2
             else: # /2 because?
-                deltaV = deltaV + operator([opterm(d.coeff/2, d.diagonal_str)])
+                deltaV.terms[diagd] = deltaV.terms.get(diagd,0) + deltaEterms.terms[d]
 
         delta_state_basis = self.convertToStateBasis(deltaV)
         t_state_basis = self.convertToStateBasis(diagt)
@@ -287,15 +279,13 @@ class MBLHamiltonian:
                 r.append( np.arctan(2*t_state_basis[i]/delta_state_basis[i])/2 )
         r = np.array(r)
 
-        #t0 = time.time()
         sin_rotator = self.convertToOperator( np.sin(r) )
         cos_rotator = self.convertToOperator( 1 - np.cos(r) )
-
         sinrotA = sin_rotator*A
         cosrotAA = cos_rotator*A*A
 
-        Sm = operator([opterm(1,"0"*A.length)]) - sinrotA + cosrotAA
-        Sp = operator([opterm(1,"0"*A.length)]) + sinrotA + cosrotAA
+        Sm = operator({"0"*self.L:1}) - sinrotA + cosrotAA
+        Sp = operator({"0"*self.L:1}) + sinrotA + cosrotAA
 
         # Rotate out
         multimestart = time.time()
@@ -313,6 +303,7 @@ class MBLHamiltonian:
 
         print("rotateOut took ", end_time - start_time)
         return isDiag
+        return False
 
     def invert(self, op, index):
         '''
@@ -386,6 +377,14 @@ class MBLHamiltonian:
             return result
 
     def getCoefficientDistributions(self, mean = False):
+
+        def get_range(term):
+            tmpterm = "".join(['1' if c != '0' else '0' for c in term])
+            start = tmpterm.find('1')
+            tmpterm = tmpterm[::-1]
+            end = len(term) - tmpterm.find('1')
+            return end - start
+
         # Zero out the dictionaries
         h = {}
         for r in range(1,self.L+1):
@@ -396,15 +395,14 @@ class MBLHamiltonian:
           J[r] = []
 
         # This list only contains each conjugate once
-        for term in self.H.opterms:
-            r = term.range
+        for term in self.H.terms:
+            r = get_range(term)
 
             # Track diagonals
-            if term.isDiagonal():
-                h[r].append(np.abs(term.coeff))
+            if ("1" in term) or ("2") in term:
+                J[r].append(np.abs(self.H.terms[term]))
             else:
-                # Otherwise, add to the offdiags
-                J[r].append(np.abs(term.coeff))
+                h[r].append(np.abs(self.H.terms[term]))
 
         if not mean:
             return h, J
