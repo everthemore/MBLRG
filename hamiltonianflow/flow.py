@@ -10,7 +10,7 @@ def doFlow(H, threshold):
     h.append(hstep)
     J.append(Jstep)
 
-    maxSteps = 100
+    maxSteps = 500
     currentStep = 0
     finished = False
 
@@ -19,7 +19,7 @@ def doFlow(H, threshold):
         print("")
         print("Flow step #%d"%currentStep)
 
-        if( currentStep != 0 and currentStep %5 == 0 ):
+        if( currentStep != 0 and currentStep %50 == 0 ):
             evals, evecs = np.linalg.eigh(H.H.toMatrix())
             evals_vs_step.append(evals)
 
