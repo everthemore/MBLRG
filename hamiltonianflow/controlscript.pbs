@@ -1,6 +1,6 @@
 #PBS -l nodes=1:ppn=1
-#PBS -l walltime=160:00:00
-#PBS -l mem=2gb
+#PBS -l walltime=24:00:00
+#PBS -l mem=6gb
 cd $PBS_O_WORKDIR
 
-/usr/bin/time python3 flow.py $L $hscale $Jscale $Uscale $seed
+/usr/bin/time python3 flow.py $output $L $hscale $Jscale $Uscale $seed
