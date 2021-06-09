@@ -41,8 +41,8 @@ def sort_by_range(L,terms):
     
     return h, J
 
-def load_data(L,h,U,J,seed):
-    data = np.atleast_2d(np.load("data/hJ-L-%d-h-%.1f-U-%.1f-J-%.1f-seed-%d.npy"%(L,h,U,J,seed), allow_pickle=True))[0][0]
+def load_data(output,L,h,U,J,seed):
+    data = np.atleast_2d(np.load("%s/L-%d/hJ-L-%d-h-%.1f-U-%.1f-J-%.1f-seed-%d.npy"%(output,L,L,h,U,J,seed), allow_pickle=True))[0][0]
     terms = data['hJ']
        
     h_by_range = []
@@ -63,7 +63,7 @@ def load_data(L,h,U,J,seed):
                 
     return h_by_range, J_by_range
 
-def load_and_average(L,h,U,J):
+def load_and_average(output,L,h,U,J):
     numSeeds = 1000
     maxFlowSteps = 600
     
@@ -74,7 +74,7 @@ def load_and_average(L,h,U,J):
     # Fill in the data
     for seed in range(numSeeds):
         try:
-            hr,Jr = load_data(L,h,U,J,seed)
+            hr,Jr = load_data(output,L,h,U,J,seed)
             for r in range(1,L):
                 all_h_for_range[seed,r][:len(hr)] = [hr[t][r] for t in range(len(hr))]
             
@@ -94,13 +94,13 @@ def load_and_average(L,h,U,J):
 
 if __name__ == "__main__":
     output = sys.argv[1]
-    os.makedirs("{0}/data/".format(output), exists_ok=True)
-    
     L = int(sys.argv[2])
+    os.makedirs("{0}/L-{1}/".format(output,L), exists_ok=True)
+
     hscale = float(sys.argv[3])
     Jscale = float(sys.argv[4])
     Uscale = float(sys.argv[5])
 
-    avg_h_vs_range_deloc, avg_J_vs_range_deloc = load_and_average(L, hscale, Uscale, Jscale)
+    avg_h_vs_range_deloc, avg_J_vs_range_deloc = load_and_average(output, L, hscale, Uscale, Jscale)
     data = {'avg_h_vs_range':avg_h_vs_range, 'avg_J_vs_range':avg_J_vs_range}
-    np.save("{0}/data/averaged-hJ-L-{1}-h-{2}-U-{3}-J-{4}.npy".format(output,L,hscale,Uscale,Jscale), data, allow_pickle=True)
+    np.save("{0}/L-{1}/averaged-hJ-L-{1}-h-{2}-U-{3}-J-{4}.npy".format(output,L,hscale,Uscale,Jscale), data, allow_pickle=True)

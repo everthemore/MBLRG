@@ -1,6 +1,6 @@
 #!/bin/bash
 
-output='/home/...'
+output='/home/projects/ku_00067/scratch/mblrg/'
 for i in `seq 0 199`
 do
 	qsub -v output=$output,L=8,hscale=1,Jscale=4,Uscale=3,seed=$i -N flow-h1-$i controlscript.pbs

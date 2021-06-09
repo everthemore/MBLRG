@@ -160,9 +160,6 @@ class MBLHamiltonian:
         def diag(term):
             return "".join([c if c == "3" else "0" for c in term])
 
-        start_time = time.time()
-
-        #print("Rotating Out")
         # See if there is anything to rotate out; return True if we're diagonal
         if( len(self.offdiagonals) == 0 ):
             return True
@@ -211,9 +208,7 @@ class MBLHamiltonian:
         Sp = operator({"0"*self.L:1}) + sinrotA + cosrotAA
 
         # Rotate out
-        multimestart = time.time()
         newH = Sm * self.H * Sp
-        print("Multiplying took ", time.time() - multimestart)
 
         # Update the Hamiltonian
         self.H = newH.cleanup(threshold=threshold)
@@ -223,8 +218,6 @@ class MBLHamiltonian:
 
         isDiag = self.H.isDiagonal()
         end_time = time.time()
-
-        print("rotateOut took ", end_time - start_time)
         return isDiag
 
     def getCoefficientDistributions(self, mean = False):
