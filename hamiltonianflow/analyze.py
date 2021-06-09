@@ -42,7 +42,7 @@ def sort_by_range(L,terms):
     return h, J
 
 def load_data(output,L,h,U,J,seed):
-    data = np.atleast_2d(np.load("%s/L-%d/hJ-L-%d-h-%.1f-U-%.1f-J-%.1f-seed-%d.npy"%(output,L,L,h,U,J,seed), allow_pickle=True))[0][0]
+    data = np.atleast_2d(np.load("%s/L-%d/raw/hJ-L-%d-h-%.1f-U-%.1f-J-%.1f-seed-%d.npy"%(output,L,L,h,U,J,seed), allow_pickle=True))[0][0]
     terms = data['hJ']
        
     h_by_range = []
