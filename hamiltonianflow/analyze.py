@@ -95,12 +95,12 @@ def load_and_average(output,L,h,U,J):
 if __name__ == "__main__":
     output = sys.argv[1]
     L = int(sys.argv[2])
-    os.makedirs("{0}/L-{1}/".format(output,L), exists_ok=True)
+    os.makedirs("{0}/L-{1}/".format(output,L), exist_ok=True)
 
     hscale = float(sys.argv[3])
     Jscale = float(sys.argv[4])
     Uscale = float(sys.argv[5])
 
-    avg_h_vs_range_deloc, avg_J_vs_range_deloc = load_and_average(output, L, hscale, Uscale, Jscale)
+    avg_h_vs_range, avg_J_vs_range = load_and_average(output, L, hscale, Uscale, Jscale)
     data = {'avg_h_vs_range':avg_h_vs_range, 'avg_J_vs_range':avg_J_vs_range}
     np.save("{0}/L-{1}/averaged-hJ-L-{1}-h-{2}-U-{3}-J-{4}.npy".format(output,L,hscale,Uscale,Jscale), data, allow_pickle=True)

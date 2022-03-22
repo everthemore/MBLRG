@@ -13,16 +13,20 @@ def doFlow(H, threshold):
     finished = False
 
     eigenvalues = [np.linalg.eigh(H.H.toMatrix())[0]]
+    steps = []
     while not finished:
         finished = H.rotateOut(threshold)
-        hJ.append(H.H.terms)
+
+        if currentStep % 10 == 0:
+            steps.append(currentStep)
+            hJ.append(H.H.terms)
 
         currentStep += 1
         if currentStep > maxSteps:
             break
 
     eigenvalues.append(np.linalg.eigh(H.H.toMatrix())[0])
-    data = {'hJ':hJ, 'start_and_final_evals':np.array(eigenvalues)}
+    data = {'hJ':hJ, 'start_and_final_evals':np.array(eigenvalues), 'steps':steps}
     return data 
 
 if __name__ == "__main__":
